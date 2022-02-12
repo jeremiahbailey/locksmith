@@ -1,4 +1,4 @@
-package main
+package locksmith
 
 import (
 	"context"
@@ -95,7 +95,12 @@ func vaultKey(ctx context.Context, key []byte) {
 	req.Parent = secret
 	req.Payload = &payload
 
-	sm.AddSecretVersion(ctx, &req)
+	version, err := sm.AddSecretVersion(ctx, &req)
+	if err != nil {
+		panic(err)
+	}
+
+	log.Printf("Created secret version: %v", version.Name)
 
 }
 
