@@ -15,29 +15,22 @@ import (
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1beta1"
 )
 
-/*
-
-IAM API has to be enabled in the project.
-
-
-deployment pattern:
-- scheduler to run once a year -- msg == rotateSecret = True
-- scheduler to run every 375 days -- 10days after rotation. -- deletekey = True
-- first time, manually publish message to topic
-- delete service account key a few hours/days after rotating the secret
-- disable previous version of the secret. when rotating key. -- if not "latest" {delete version}
-- delete previous secret once original key is deleted.
-*/
-
+// PubSubMessage is the message from the topic.
 type PubSubMessage struct {
 	Data []byte `json:"data"`
 }
 
+// Message is the message published into the topic from the scheduler.
 type Message struct {
 	RotateKey string `json:"rotatekey,omitempty"`
 }
 
+// createServiceAccountKey creates a service account key
+// and calls a helper function to ensure all other keys
+// for that service account are disabled.
 func createServiceAccountKey(ctx context.Context) []byte {
+	log.Println("Starting the process to create service account key...")
+
 	projectID := os.Getenv("PROJECT_ID")
 	serviceAccountEmail := os.Getenv("SERVICE_ACCOUNT_EMAIL")
 
@@ -47,21 +40,11 @@ func createServiceAccountKey(ctx context.Context) []byte {
 	}
 	serviceAccount := fmt.Sprintf("projects/%v/serviceAccounts/%v", projectID, serviceAccountEmail)
 
-	resp, err := iamService.Projects.ServiceAccounts.Keys.List(serviceAccount).Do()
-	if err != nil {
-		panic(err)
-	}
-
-	var disable iam.DisableServiceAccountKeyRequest
-
-	for _, v := range resp.Keys {
-
-		iamService.Projects.ServiceAccounts.Keys.Disable(v.Name, &disable).Do()
-	}
+	disableServiceAccountKey(iamService, serviceAccount)
 	var request iam.CreateServiceAccountKeyRequest
 
 	key, err := iamService.Projects.ServiceAccounts.Keys.Create(serviceAccount, &request).Do()
-
+	log.Printf("Created service account key: %v", key.Name)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -71,13 +54,30 @@ func createServiceAccountKey(ctx context.Context) []byte {
 	b.Type = "PRIVATE KEY"
 	b.Bytes = []byte(key.PrivateKeyData)
 
-	key1 := pem.EncodeToMemory(&b)
-	return key1
+	pemKey := pem.EncodeToMemory(&b)
+	return pemKey
 
 }
 
-func vaultKey(ctx context.Context, key []byte) {
+// Disable any existing keys for the service account.
+func disableServiceAccountKey(iamService *iam.Service, serviceAccount string) {
+	resp, err := iamService.Projects.ServiceAccounts.Keys.List(serviceAccount).Do()
+	if err != nil {
+		panic(err)
+	}
 
+	var disable iam.DisableServiceAccountKeyRequest
+
+	for _, v := range resp.Keys {
+		iamService.Projects.ServiceAccounts.Keys.Disable(v.Name, &disable).Do()
+		log.Printf("Disabled the key: %v", v.Name)
+	}
+}
+
+// Create a new secret version and vaults a PEM formatted key
+// in that version.
+func vaultKey(ctx context.Context, key []byte) {
+	log.Println("Starting the key vaulting process...")
 	secretName := os.Getenv("SECRET_NAME")
 	projectID := os.Getenv("PROJECT_ID")
 	sm, err := secretmanager.NewClient(ctx)
@@ -86,6 +86,22 @@ func vaultKey(ctx context.Context, key []byte) {
 	}
 
 	secret := fmt.Sprintf("projects/%v/secrets/%v", projectID, secretName)
+
+	disableSecretVersions(ctx, sm, secret)
+
+	var req secretmanagerpb.AddSecretVersionRequest
+	var payload secretmanagerpb.SecretPayload
+	payload.Data = key
+	req.Parent = secret
+	req.Payload = &payload
+
+	sm.AddSecretVersion(ctx, &req)
+
+}
+
+// Disables all secret versions for a given secret.
+func disableSecretVersions(ctx context.Context, sm *secretmanager.Client, secret string) {
+	log.Println("Checking if there are previous versions to disable...")
 	var listRequest secretmanagerpb.ListSecretVersionsRequest
 	listRequest.Parent = secret
 
@@ -103,26 +119,15 @@ func vaultKey(ctx context.Context, key []byte) {
 			var disableSecretVersion secretmanagerpb.DisableSecretVersionRequest
 			disableSecretVersion.Name = resp.Name
 			sm.DisableSecretVersion(ctx, &disableSecretVersion)
+			log.Printf("Disabled version: %v", resp.Name)
 		}
 
 	}
-	var req secretmanagerpb.AddSecretVersionRequest
-	var payload secretmanagerpb.SecretPayload
-	payload.Data = key
-	req.Parent = secret
-	req.Payload = &payload
-
-	sm.AddSecretVersion(ctx, &req)
-
 }
 
-// func main() {
-// 	ctx := context.Background()
-// 	key := createServiceAccountKey(ctx)
-// 	vaultKey(ctx, key)
-// }
-
+// Unmarshals the PubSub message into the Message.
 func unmarshalMessage(m PubSubMessage) Message {
+	log.Println("Starting to unmarshal the message...")
 	var msg Message
 	json.Unmarshal(m.Data, &msg)
 
