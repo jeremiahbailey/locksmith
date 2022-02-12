@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"log"
@@ -33,7 +34,6 @@ type PubSubMessage struct {
 }
 
 type Message struct {
-	DeleteKey string `json:"deletekey,omitempty"`
 	RotateKey string `json:"rotatekey,omitempty"`
 }
 
@@ -116,27 +116,27 @@ func vaultKey(ctx context.Context, key []byte) {
 
 }
 
-func main() {
-	ctx := context.Background()
-	key := createServiceAccountKey(ctx)
-	vaultKey(ctx, key)
+// func main() {
+// 	ctx := context.Background()
+// 	key := createServiceAccountKey(ctx)
+// 	vaultKey(ctx, key)
+// }
+
+func unmarshalMessage(m PubSubMessage) Message {
+	var msg Message
+	json.Unmarshal(m.Data, &msg)
+
+	return msg
+
 }
 
-// func unmarshalMessage(m PubSubMessage) Message {
-// 	var msg Message
-// 	json.Unmarshal(m.Data, &msg)
+func ProcessEvent(ctx context.Context, m PubSubMessage) error {
+	msg := unmarshalMessage(m)
 
-// 	return msg
+	if msg.RotateKey == "true" {
+		saKey := createServiceAccountKey(ctx)
+		vaultKey(ctx, saKey)
+	}
 
-// }
-
-// func ProcessEvent(ctx context.Context, m PubSubMessage) error {
-// 	msg := unmarshalMessage(m)
-
-// 	if msg.RotateKey == "true" {
-// 		saKey := createServiceAccountKey(ctx)
-// 		vaultKey(ctx, saKey)
-// 	}
-
-// 	return nil
-// }
+	return nil
+}
