@@ -1,5 +1,35 @@
 package locksmith
 
+/*
+
+Locksmith allows you to automatically manage the creation, vaulting, rotation, and disabling
+of GCP Service Account Keys. Locksmith also allows you to optionally disable secrets versions
+in GCP Secret Manager.
+
+Locksmith is designed to be deployed as a background Cloud Function on GCP. The entire solution would
+consist of a Cloud Scheduler job that would be responsible for ensuring each Service Account in a given
+GCP project has its keys rotated on a regular schedule. The Cloud Function's service account will need
+to be granted the requisite roles to create and disable Service Account keys and Secret versions.
+
+
+Example Message:
+
+{
+    "rotation_type": "serviceAccountKey",
+    "service_account_email": "myserviceacccount@myprojectid.iam.gserviceaccount.com",
+    "disable_secret_versions": true,
+    "disable_service_account_keys": false,
+    "project_id": "my-project-id",
+    "secret_name": "my-secret"
+}
+
+In the example above, the Cloud Function will attempt to create a new service account key for
+the "myserviceacccount@myprojectid.iam.gserviceaccount.com" account; create a new version for
+the secret "my-secret" and disable all other secret versions. It will *not* disable the existing
+keys for the service account.
+
+*/
+
 import (
 	"context"
 	"encoding/base64"
@@ -19,19 +49,32 @@ type PubSubMessage struct {
 	Data []byte `json:"data"`
 }
 
-// Message is the message published into the topic from the scheduler.
-type Message struct {
-	RotationType          string `json:"rotation_type"`                     // one of serviceAccountKey or APIKey is accepted
-	APIKeyName            string `json:"api_key_name,omitempty"`            // the name of the API key
-	ServiceAccountLDAP    string `json:"service_account_ldap,omitempty"`    // the LDAP of the service account key
-	DisableSecretVersions bool   `json:"disable_secret_versions,omitempty"` // option to disable the secret version
-	DisableKeys           bool   `json:"disable_keys,omitempty"`            // option to disable the key. If true all previous API Key or serviceAccount keys will be disables
-	ProjectID             string `json:"project_id"`
-	SecretName            string `json:"secret_name"`
+// Directive is the directive published into the topic from the scheduler.
+type Directive struct {
+
+	// only serviceAccount is currently accepted.
+	RotationType string `json:"rotation_type"`
+
+	// the email of the service account.
+	ServiceAccountEmail string `json:"service_account_email,omitempty"`
+
+	// option to disable the secret version. If true, all previous versions
+	// of the secret will be disabled.
+	DisableSecretVersions bool `json:"disable_secret_versions,omitempty"`
+
+	// option to disable the key. If true all previous serviceAccount
+	// keys will be disabled.
+	DisableServiceAccoutKeys bool `json:"disable_service_account_keys,omitempty"`
+
+	// the ID of the GCP Project. ex: my-new-prj-123
+	ProjectID string `json:"project_id"`
+
+	// the name of the secret. ex: my-prod-secret
+	SecretName string `json:"secret_name"`
 }
 
 // createServiceAccountKey creates a service account key.
-func createServiceAccountKey(ctx context.Context, msg Message) []byte {
+func createServiceAccountKey(ctx context.Context, msg Directive) []byte {
 	log.Println("Starting the process to create service account key...")
 
 	iamService, err := iam.NewService(ctx)
@@ -39,9 +82,9 @@ func createServiceAccountKey(ctx context.Context, msg Message) []byte {
 		log.Fatalf("error creating iam service: %v", err)
 	}
 
-	serviceAccount := fmt.Sprintf("projects/%v/serviceAccounts/%v", msg.ProjectID, msg.ServiceAccountLDAP)
+	serviceAccount := fmt.Sprintf("projects/%v/serviceAccounts/%v", msg.ProjectID, msg.ServiceAccountEmail)
 
-	if msg.DisableKeys {
+	if msg.DisableServiceAccoutKeys {
 		disableServiceAccountKeys(iamService, serviceAccount)
 	}
 
@@ -79,7 +122,7 @@ func disableServiceAccountKeys(iamService *iam.Service, serviceAccount string) {
 }
 
 // Create a new secret version and vaults the given value in that version.
-func vaultKey(ctx context.Context, key []byte, msg Message) {
+func vaultKey(ctx context.Context, key []byte, d Directive) {
 	log.Println("Starting the key vaulting process...")
 
 	sm, err := secretmanager.NewClient(ctx)
@@ -87,9 +130,9 @@ func vaultKey(ctx context.Context, key []byte, msg Message) {
 		log.Fatal(err)
 	}
 
-	secret := fmt.Sprintf("projects/%v/secrets/%v", msg.ProjectID, msg.SecretName)
+	secret := fmt.Sprintf("projects/%v/secrets/%v", d.ProjectID, d.SecretName)
 
-	if msg.DisableSecretVersions {
+	if d.DisableSecretVersions {
 		disableSecretVersions(ctx, sm, secret)
 	}
 	var req secretmanagerpb.AddSecretVersionRequest
@@ -134,25 +177,25 @@ func disableSecretVersions(ctx context.Context, sm *secretmanager.Client, secret
 }
 
 // Unmarshals the PubSub message into the Message.
-func unmarshalMessage(m PubSubMessage) Message {
+func unmarshalMessage(m PubSubMessage) Directive {
 	log.Println("Starting to unmarshal the message...")
-	var msg Message
-	json.Unmarshal(m.Data, &msg)
+	var d Directive
+	json.Unmarshal(m.Data, &d)
 
-	return msg
+	return d
 
 }
 
 func ProcessEvent(ctx context.Context, m PubSubMessage) error {
-	msg := unmarshalMessage(m)
+	d := unmarshalMessage(m)
 
-	if msg.RotationType == "serviceAccountKey" {
-		key := createServiceAccountKey(ctx, msg)
-		vaultKey(ctx, key, msg)
+	if d.RotationType == "serviceAccountKey" {
+		key := createServiceAccountKey(ctx, d)
+		vaultKey(ctx, key, d)
 
 	}
 
-	if msg.RotationType != "serviceAccountKey" {
+	if d.RotationType != "serviceAccountKey" {
 		log.Fatal("Only serviceAccountKeyRotations are currently supported.")
 	}
 
