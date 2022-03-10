@@ -2,11 +2,11 @@ package locksmith
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
-	"strings"
 
 	"google.golang.org/api/iam/v1"
 	"google.golang.org/api/iterator"
@@ -30,19 +30,6 @@ type Message struct {
 	ProjectID             string `json:"project_id"`
 }
 
-type ServiceAccountKey struct {
-	Type          string `json:"type"`
-	ProjectID     string `json:"project_id"`
-	PrivateKeyID  string `json:"private_key_id"`
-	PrivateKey    string `json:"private_key"`
-	ClientEmail   string `json:"client_email"`
-	ClientID      string `json:"client_id"`
-	AuthURI       string `json:"auth_uri"`
-	TokenURI      string `json:"token_uri"`
-	X509CertURL   string `json:"auth_provider_x509_cert_url"`
-	ClientCertURL string `json:"client_x509_cert_url"`
-}
-
 // createServiceAccountKey creates a service account key
 // and calls a helper function to ensure all other keys
 // for that service account are disabled.
@@ -60,11 +47,6 @@ func createServiceAccountKey(ctx context.Context, msg Message) []byte {
 		disableServiceAccountKey(iamService, serviceAccount)
 	}
 
-	sa, err := iamService.Projects.ServiceAccounts.Get(fmt.Sprintf("projects/-/serviceAccounts/%v", msg.ServiceAccountLDAP)).Do()
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	var request iam.CreateServiceAccountKeyRequest
 
 	key, err := iamService.Projects.ServiceAccounts.Keys.Create(serviceAccount, &request).Do()
@@ -73,23 +55,12 @@ func createServiceAccountKey(ctx context.Context, msg Message) []byte {
 		log.Fatal(err)
 	}
 
-	var saKey ServiceAccountKey
-	saKey.Type = "service_account"
-	saKey.ProjectID = msg.ProjectID
-	saKey.ClientEmail = msg.ServiceAccountLDAP
-	saKey.ClientID = sa.UniqueId
-	saKey.PrivateKey = key.PrivateKeyData
-	saKey.PrivateKeyID = strings.Split(key.Name, "/")[5]
-	saKey.AuthURI = "https://accounts.google.com/o/oauth2/auth"
-	saKey.TokenURI = "https://oauth2.googleapis.com/token"
-	saKey.X509CertURL = "https://www.googleapis.com/oauth2/v1/certs"
-	saKey.ClientCertURL = fmt.Sprintf("https://www.googleapis.com/robot/v1/metadata/x509/%v", strings.Replace(msg.ServiceAccountLDAP, "@", "%40", 1))
-
-	k, err := json.Marshal(saKey)
+	jsonKeyFile, err := base64.StdEncoding.DecodeString(key.PrivateKeyData)
 	if err != nil {
 		log.Fatal(err)
 	}
-	return k
+
+	return jsonKeyFile
 }
 
 // Disable any existing keys for the service account.
