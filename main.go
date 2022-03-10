@@ -53,6 +53,8 @@ func createServiceAccountKey(ctx context.Context, msg Message) []byte {
 		log.Fatal(err)
 	}
 
+	// This contains a secret value. NEVER, NOT EVER, should this be logged.
+	// ANYWHERE. UNDER ANY CIRCUMSTANCES. Yes, this applies to YOU!
 	jsonKeyFile, err := base64.StdEncoding.DecodeString(key.PrivateKeyData)
 	if err != nil {
 		log.Fatal(err)
@@ -148,6 +150,10 @@ func ProcessEvent(ctx context.Context, m PubSubMessage) error {
 		key := createServiceAccountKey(ctx, msg)
 		vaultKey(ctx, key, msg)
 
+	}
+
+	if msg.RotationType != "serviceAccountKey" {
+		log.Fatal("Only serviceAccountKeyRotations are currently supported.")
 	}
 
 	return nil
