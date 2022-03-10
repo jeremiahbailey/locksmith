@@ -44,7 +44,7 @@ func createServiceAccountKey(ctx context.Context, msg Message) []byte {
 	serviceAccount := fmt.Sprintf("projects/%v/serviceAccounts/%v", msg.ProjectID, msg.ServiceAccountLDAP)
 
 	if msg.DisableKeys {
-		disableServiceAccountKey(iamService, serviceAccount)
+		disableServiceAccountKeys(iamService, serviceAccount)
 	}
 
 	var request iam.CreateServiceAccountKeyRequest
@@ -64,7 +64,7 @@ func createServiceAccountKey(ctx context.Context, msg Message) []byte {
 }
 
 // Disable any existing keys for the service account.
-func disableServiceAccountKey(iamService *iam.Service, serviceAccount string) {
+func disableServiceAccountKeys(iamService *iam.Service, serviceAccount string) {
 	resp, err := iamService.Projects.ServiceAccounts.Keys.List(serviceAccount).Do()
 	if err != nil {
 		panic(err)
@@ -147,15 +147,10 @@ func unmarshalMessage(m PubSubMessage) Message {
 func ProcessEvent(ctx context.Context, m PubSubMessage) error {
 	msg := unmarshalMessage(m)
 
-	switch {
-	case msg.RotationType == "serviceAccountKey":
+	if msg.RotationType == "serviceAccountKey" {
 		key := createServiceAccountKey(ctx, msg)
 		vaultKey(ctx, key, msg)
-	case msg.RotationType == "APIKey":
-		//rotate API Key
 
-	default:
-		log.Printf("RotationType must be one of serviceAccountKey or APIKey. Got: %v", msg.RotationType)
 	}
 
 	return nil
