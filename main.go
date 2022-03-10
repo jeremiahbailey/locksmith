@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 
 	"google.golang.org/api/iam/v1"
 	"google.golang.org/api/iterator"
@@ -28,11 +27,10 @@ type Message struct {
 	DisableSecretVersions bool   `json:"disable_secret_versions,omitempty"` // option to disable the secret version
 	DisableKeys           bool   `json:"disable_keys,omitempty"`            // option to disable the key. If true all previous API Key or serviceAccount keys will be disables
 	ProjectID             string `json:"project_id"`
+	SecretName            string `json:"secret_name"`
 }
 
-// createServiceAccountKey creates a service account key
-// and calls a helper function to ensure all other keys
-// for that service account are disabled.
+// createServiceAccountKey creates a service account key.
 func createServiceAccountKey(ctx context.Context, msg Message) []byte {
 	log.Println("Starting the process to create service account key...")
 
@@ -81,14 +79,13 @@ func disableServiceAccountKeys(iamService *iam.Service, serviceAccount string) {
 // Create a new secret version and vaults the given value in that version.
 func vaultKey(ctx context.Context, key []byte, msg Message) {
 	log.Println("Starting the key vaulting process...")
-	secretName := os.Getenv("SECRET_NAME")
-	projectID := os.Getenv("PROJECT_ID")
+
 	sm, err := secretmanager.NewClient(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	secret := fmt.Sprintf("projects/%v/secrets/%v", projectID, secretName)
+	secret := fmt.Sprintf("projects/%v/secrets/%v", msg.ProjectID, msg.SecretName)
 
 	if msg.DisableSecretVersions {
 		disableSecretVersions(ctx, sm, secret)
