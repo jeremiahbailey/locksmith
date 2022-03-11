@@ -102,7 +102,7 @@ func CreateServiceAccountKey(ctx context.Context, msg Directive) ([]byte, error)
 		return nil, err
 	}
 
-	return key, err
+	return KeyFile, err
 }
 
 // Disable any existing keys for the service account.
