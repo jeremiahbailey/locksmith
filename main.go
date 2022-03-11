@@ -73,12 +73,12 @@ type Directive struct {
 var KeyFile []byte
 
 // createServiceAccountKey creates a service account key.
-func CreateServiceAccountKey(ctx context.Context, msg Directive) error {
+func CreateServiceAccountKey(ctx context.Context, msg Directive) ([]byte, error) {
 	log.Println("Starting the process to create service account key...")
 
 	iamService, err := iam.NewService(ctx)
 	if err != nil {
-		return err
+		return nil,  err
 	}
 
 	serviceAccount := fmt.Sprintf("projects/%v/serviceAccounts/%v", msg.ProjectID, msg.ServiceAccountEmail)
@@ -91,7 +91,7 @@ func CreateServiceAccountKey(ctx context.Context, msg Directive) error {
 
 	key, err := iamService.Projects.ServiceAccounts.Keys.Create(serviceAccount, request).Do()
 	if err != nil {
-		return err
+		return nil,  err
 	}
 
 	log.Printf("Created service account key: %v", serviceAccount)
@@ -100,10 +100,10 @@ func CreateServiceAccountKey(ctx context.Context, msg Directive) error {
 	// ANYWHERE. UNDER ANY CIRCUMSTANCES. Yes, this applies to YOU!
 	KeyFile, err = base64.StdEncoding.DecodeString(key.PrivateKeyData)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return err
+	return key, err
 }
 
 // Disable any existing keys for the service account.
