@@ -22,7 +22,7 @@ type PubSubMessage struct {
 	Data []byte `json:"data"`
 }
 
-// Unmarshals the PubSub message into the Message.
+// Unmarshals the PubSub message into the Directive.
 func unmarshalMessage(m PubSubMessage) locksmith.Directive {
 	log.Println("Starting to unmarshal the message...")
 	var d locksmith.Directive
