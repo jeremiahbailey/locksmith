@@ -70,11 +70,15 @@ type Directive struct {
 	SecretName string `json:"secret_name"`
 }
 
+// KeyFile is the Service Account Key.
+// It is the secret that will be vaulted
+// in Secret Manager.
 var KeyFile []byte
 
 // CreateServiceAccountKey creates a service account key, and if DisableServiceAccountKeys
 // is set to 'true' in the directive, it will disable all other service account keys for that service
-// account.
+// account. It will return one of []byte or error. The []byte (the KeyFile) contains the key material
+// of the service account. This should be treated as a secret and should only ever be placed in secret manager.
 func CreateServiceAccountKey(ctx context.Context, msg Directive) ([]byte, error) {
 	log.Println("Starting the process to create service account key...")
 
@@ -85,6 +89,7 @@ func CreateServiceAccountKey(ctx context.Context, msg Directive) ([]byte, error)
 
 	serviceAccount := fmt.Sprintf("projects/%v/serviceAccounts/%v", msg.ProjectID, msg.ServiceAccountEmail)
 
+	// This will disable the service account keys if the directive states to do so.
 	if msg.DisableServiceAccoutKeys {
 		disableServiceAccountKeys(iamService, serviceAccount)
 	}
@@ -98,8 +103,6 @@ func CreateServiceAccountKey(ctx context.Context, msg Directive) ([]byte, error)
 
 	log.Printf("Created service account key: %v", serviceAccount)
 
-	// This contains a secret value. NEVER, NOT EVER, should this be logged.
-	// ANYWHERE. UNDER ANY CIRCUMSTANCES. Yes, this applies to YOU!
 	KeyFile, err = base64.StdEncoding.DecodeString(key.PrivateKeyData)
 	if err != nil {
 		return nil, err
