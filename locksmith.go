@@ -43,7 +43,7 @@ import (
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1beta1"
 )
 
-// Directive is the directive published into the topic from the scheduler.
+// Directive is used to tell the 'locksmith' what operations to perform.
 type Directive struct {
 
 	// In a future version, this field will be used to allow
