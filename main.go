@@ -6,7 +6,7 @@ Locksmith allows you to automatically manage the creation, vaulting, rotation, a
 of GCP Service Account Keys. Locksmith also allows you to optionally disable secrets versions
 in GCP Secret Manager.
 
-Locksmith is designed to be deployed as a background Cloud Function on GCP. The entire solution would
+Locksmith is intended to be used withing a background Cloud Function on GCP. The entire solution would
 consist of a Cloud Scheduler job that would be responsible for ensuring each Service Account in a given
 GCP project has its keys rotated on a regular schedule. The Cloud Function's service account will need
 to be granted the requisite roles to create and disable Service Account keys and Secret versions.
