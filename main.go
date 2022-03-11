@@ -33,7 +33,6 @@ keys for the service account.
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"log"
 
@@ -73,13 +72,15 @@ type Directive struct {
 	SecretName string `json:"secret_name"`
 }
 
+var KeyFile []byte
+
 // createServiceAccountKey creates a service account key.
-func createServiceAccountKey(ctx context.Context, msg Directive) []byte {
+func CreateServiceAccountKey(ctx context.Context, msg Directive) error {
 	log.Println("Starting the process to create service account key...")
 
 	iamService, err := iam.NewService(ctx)
 	if err != nil {
-		log.Fatalf("error creating iam service: %v", err)
+		return err
 	}
 
 	serviceAccount := fmt.Sprintf("projects/%v/serviceAccounts/%v", msg.ProjectID, msg.ServiceAccountEmail)
@@ -88,46 +89,51 @@ func createServiceAccountKey(ctx context.Context, msg Directive) []byte {
 		disableServiceAccountKeys(iamService, serviceAccount)
 	}
 
-	var request iam.CreateServiceAccountKeyRequest
+	request := &iam.CreateServiceAccountKeyRequest{}
 
-	key, err := iamService.Projects.ServiceAccounts.Keys.Create(serviceAccount, &request).Do()
-	log.Printf("Created service account key: %v", key.Name)
+	key, err := iamService.Projects.ServiceAccounts.Keys.Create(serviceAccount, request).Do()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
+
+	log.Printf("Created service account key: %v", serviceAccount)
 
 	// This contains a secret value. NEVER, NOT EVER, should this be logged.
 	// ANYWHERE. UNDER ANY CIRCUMSTANCES. Yes, this applies to YOU!
-	jsonKeyFile, err := base64.StdEncoding.DecodeString(key.PrivateKeyData)
+	KeyFile, err = base64.StdEncoding.DecodeString(key.PrivateKeyData)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	return jsonKeyFile
+	return err
 }
 
 // Disable any existing keys for the service account.
-func disableServiceAccountKeys(iamService *iam.Service, serviceAccount string) {
+func disableServiceAccountKeys(iamService *iam.Service, serviceAccount string) error {
 	resp, err := iamService.Projects.ServiceAccounts.Keys.List(serviceAccount).Do()
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	var disable iam.DisableServiceAccountKeyRequest
 
 	for _, v := range resp.Keys {
-		iamService.Projects.ServiceAccounts.Keys.Disable(v.Name, &disable).Do()
+		_, err = iamService.Projects.ServiceAccounts.Keys.Disable(v.Name, &disable).Do()
+		if err != nil {
+			return err
+		}
 		log.Printf("Disabled the key: %v", v.Name)
 	}
+	return err
 }
 
 // Create a new secret version and vaults the given value in that version.
-func vaultKey(ctx context.Context, key []byte, d Directive) {
+func VaultKey(ctx context.Context, key []byte, d Directive) error {
 	log.Println("Starting the key vaulting process...")
 
 	sm, err := secretmanager.NewClient(ctx)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	secret := fmt.Sprintf("projects/%v/secrets/%v", d.ProjectID, d.SecretName)
@@ -143,15 +149,15 @@ func vaultKey(ctx context.Context, key []byte, d Directive) {
 
 	version, err := sm.AddSecretVersion(ctx, &req)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	log.Printf("Created secret version: %v", version.Name)
-
+	return err
 }
 
 // Disables all secret versions for a given secret.
-func disableSecretVersions(ctx context.Context, sm *secretmanager.Client, secret string) {
+func disableSecretVersions(ctx context.Context, sm *secretmanager.Client, secret string) error {
 	log.Println("Checking if there are previous versions to disable...")
 	var listRequest secretmanagerpb.ListSecretVersionsRequest
 	listRequest.Parent = secret
@@ -163,41 +169,20 @@ func disableSecretVersions(ctx context.Context, sm *secretmanager.Client, secret
 			break
 		}
 		if err != nil {
-			panic(err)
+			return err
 		}
 
 		if resp.State == 1 {
-			var disableSecretVersion secretmanagerpb.DisableSecretVersionRequest
+			disableSecretVersion := &secretmanagerpb.DisableSecretVersionRequest{}
 			disableSecretVersion.Name = resp.Name
-			sm.DisableSecretVersion(ctx, &disableSecretVersion)
-			log.Printf("Disabled version: %v", resp.Name)
+			version, err := sm.DisableSecretVersion(ctx, disableSecretVersion)
+
+			if err != nil {
+				return err
+			}
+			log.Printf("Disabled version: %v", version.Name)
 		}
 
 	}
-}
-
-// Unmarshals the PubSub message into the Message.
-func unmarshalMessage(m PubSubMessage) Directive {
-	log.Println("Starting to unmarshal the message...")
-	var d Directive
-	json.Unmarshal(m.Data, &d)
-
-	return d
-
-}
-
-func ProcessEvent(ctx context.Context, m PubSubMessage) error {
-	d := unmarshalMessage(m)
-
-	if d.RotationType == "serviceAccountKey" {
-		key := createServiceAccountKey(ctx, d)
-		vaultKey(ctx, key, d)
-
-	}
-
-	if d.RotationType != "serviceAccountKey" {
-		log.Fatal("Only serviceAccountKeyRotations are currently supported.")
-	}
-
 	return nil
 }
