@@ -1,2 +1,2 @@
 # locksmith
- a 'side-car' to creste and vault GCP service account keys for use in by other services.
+ Locksmith allows you to create GCP Service Account keys, vault them in secret manager, rotate the keys and secrets, and disable both keys and versions.
