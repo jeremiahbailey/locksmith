@@ -47,11 +47,13 @@ import (
 // Directive is the directive published into the topic from the scheduler.
 type Directive struct {
 
-	// only serviceAccount is currently accepted.
-	RotationType string `json:"rotation_type"`
+	// In a future version, this field will be used to allow
+	// for specifying whether a GCP service account key or
+	// API Key is the target.
+	RotationType string `json:"rotation_type, omitempty"`
 
 	// the email of the service account.
-	ServiceAccountEmail string `json:"service_account_email,omitempty"`
+	ServiceAccountEmail string `json:"service_account_email"`
 
 	// option to disable the secret version. If true, all previous versions
 	// of the secret will be disabled.
