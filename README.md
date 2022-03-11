@@ -56,10 +56,10 @@ func ProcessEvent(ctx context.Context, m PubSubMessage) error {
 ## Example Directive
 ```json
 {
-    "rotation_type": "serviceAccountKey", //optional
+    "rotation_type": "serviceAccountKey",
     "service_account_email": "myserviceacccount@myprojectid.iam.gserviceaccount.com",
-    "disable_secret_versions": true, //optional
-    "disable_service_account_keys": false, //optional
+    "disable_secret_versions": true,
+    "disable_service_account_keys": false,
     "project_id": "my-project-id",
     "secret_name": "my-secret"
 }
