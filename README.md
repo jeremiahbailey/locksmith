@@ -2,6 +2,11 @@
  Locksmith allows you to create GCP Service Account keys, vault them in secret manager, rotate the keys and secrets, and disable both keys and versions.
 
 
+# Example
+
+## Background Cloud Function
+This example assumes you want to use locksmith within a background Cloud Function that will receive messages from PubSub. The message published to the topic in this instance would
+be a the 'Directive' for locksmith in JSON. See example directive below.
 ```go
 package cloudfunctionexample
 
@@ -46,4 +51,16 @@ func ProcessEvent(ctx context.Context, m PubSubMessage) error {
 	return nil
 }
 
+```
+
+## Example Directive
+```json
+{
+    "rotation_type": "serviceAccountKey", //optional
+    "service_account_email": "myserviceacccount@myprojectid.iam.gserviceaccount.com",
+    "disable_secret_versions": true, //optional
+    "disable_service_account_keys": false, //optional
+    "project_id": "my-project-id",
+    "secret_name": "my-secret"
+}
 ```
