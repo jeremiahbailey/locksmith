@@ -48,30 +48,33 @@ type Directive struct {
 
 	// In a future version, this field will be used to allow
 	// for specifying whether a GCP service account key or
-	// API Key is the target.
+	// API Key is the target. Support may be extended for all
+	// secrets/keys on GCP that developers need/want to rotate.
 	RotationType string `json:"rotation_type,omitempty"`
 
-	// the email of the service account.
+	// The email of the service account.
 	ServiceAccountEmail string `json:"service_account_email"`
 
-	// option to disable the secret version. If true, all previous versions
+	// Option to disable the secret version. If true, all previous versions
 	// of the secret will be disabled.
 	DisableSecretVersions bool `json:"disable_secret_versions,omitempty"`
 
-	// option to disable the key. If true all previous serviceAccount
+	// Option to disable the key. If true all previous serviceAccount
 	// keys will be disabled.
 	DisableServiceAccoutKeys bool `json:"disable_service_account_keys,omitempty"`
 
-	// the ID of the GCP Project. ex: my-new-prj-123
+	// The ID of the GCP Project. ex: my-new-prj-123
 	ProjectID string `json:"project_id"`
 
-	// the name of the secret. ex: my-prod-secret
+	// The name of the secret. ex: my-prod-secret
 	SecretName string `json:"secret_name"`
 }
 
 var KeyFile []byte
 
-// createServiceAccountKey creates a service account key.
+// CreateServiceAccountKey creates a service account key, and if DisableServiceAccountKeys
+// is set to 'true' in the directive, it will disable all other service account keys for that service
+// account.
 func CreateServiceAccountKey(ctx context.Context, msg Directive) ([]byte, error) {
 	log.Println("Starting the process to create service account key...")
 
@@ -125,6 +128,8 @@ func disableServiceAccountKeys(iamService *iam.Service, serviceAccount string) e
 }
 
 // Create a new secret version and vaults the given value in that version.
+// If DisableSecretVersions is set to 'true' in the Directive, all other
+// version of the secret will be disabled.
 func VaultKey(ctx context.Context, key []byte, d Directive) error {
 	log.Println("Starting the key vaulting process...")
 
