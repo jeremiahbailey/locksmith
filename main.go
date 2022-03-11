@@ -43,10 +43,6 @@ import (
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1beta1"
 )
 
-// PubSubMessage is the message from the topic.
-type PubSubMessage struct {
-	Data []byte `json:"data"`
-}
 
 // Directive is the directive published into the topic from the scheduler.
 type Directive struct {
