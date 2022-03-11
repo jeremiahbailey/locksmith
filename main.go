@@ -43,7 +43,6 @@ import (
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1beta1"
 )
 
-
 // Directive is the directive published into the topic from the scheduler.
 type Directive struct {
 
@@ -78,7 +77,7 @@ func CreateServiceAccountKey(ctx context.Context, msg Directive) ([]byte, error)
 
 	iamService, err := iam.NewService(ctx)
 	if err != nil {
-		return nil,  err
+		return nil, err
 	}
 
 	serviceAccount := fmt.Sprintf("projects/%v/serviceAccounts/%v", msg.ProjectID, msg.ServiceAccountEmail)
@@ -91,7 +90,7 @@ func CreateServiceAccountKey(ctx context.Context, msg Directive) ([]byte, error)
 
 	key, err := iamService.Projects.ServiceAccounts.Keys.Create(serviceAccount, request).Do()
 	if err != nil {
-		return nil,  err
+		return nil, err
 	}
 
 	log.Printf("Created service account key: %v", serviceAccount)
