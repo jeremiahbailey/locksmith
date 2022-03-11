@@ -6,7 +6,7 @@
 
 ## Background Cloud Function
 This example assumes you want to use locksmith within a background Cloud Function that will receive messages from PubSub. The message published to the topic in this instance would
-be a the 'Directive' for locksmith in JSON. See example directive below.
+be a 'Directive' for locksmith in JSON. See example directive below.
 ```go
 package cloudfunctionexample
 
