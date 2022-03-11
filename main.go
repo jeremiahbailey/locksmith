@@ -49,7 +49,7 @@ type Directive struct {
 	// In a future version, this field will be used to allow
 	// for specifying whether a GCP service account key or
 	// API Key is the target.
-	RotationType string `json:"rotation_type, omitempty"`
+	RotationType string `json:"rotation_type,omitempty"`
 
 	// the email of the service account.
 	ServiceAccountEmail string `json:"service_account_email"`
