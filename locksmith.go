@@ -146,13 +146,13 @@ func VaultKey(ctx context.Context, key []byte, d Directive) error {
 	if d.DisableSecretVersions {
 		disableSecretVersions(ctx, sm, secret)
 	}
-	var req secretmanagerpb.AddSecretVersionRequest
-	var payload secretmanagerpb.SecretPayload
+	req := &secretmanagerpb.AddSecretVersionRequest{}
+	payload := &secretmanagerpb.SecretPayload{}
 	payload.Data = key
 	req.Parent = secret
-	req.Payload = &payload
+	req.Payload = payload
 
-	version, err := sm.AddSecretVersion(ctx, &req)
+	version, err := sm.AddSecretVersion(ctx, req)
 	if err != nil {
 		return err
 	}
