@@ -12,10 +12,12 @@ could be established to ensure keys are rotated within a certain time frame whil
 version has been vaulted in secrets manager.
 1. [Asset Key Thief](https://engineering.sada.com/asset-key-thief-disclosure-cfae4f1778b6) provides a clear example of how a misconfiguration
 within other GCP services can force organizations to need to rapidly rotate all or some keys within their GCP environment. Locksmith can address
-this situation easily with the emergency key rotation option.
+this situation easily with the _yet to be released_ emergency key rotation option.
 
 ## Deployment Configuration
 
-The Service Account used to run the cloud function will require the following permissions: 
+The Service Account used to run the cloud function will require the following permissions: Secret Manager Admin and Service Account Key Admin.
+
+An runtime environment variable of SecureStoreProjectID is expected to be provided and needs to contain a valid projectID in the form `my-project-id-123`
 
 NOTE: The Identity and Access Management (IAM) and Secrets Manager APIs must be enabled in the projects where service account keys and secrets will be used.
