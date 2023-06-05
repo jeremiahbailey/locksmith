@@ -297,7 +297,10 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			formattedSecretName := fmt.Sprintf("projects/%v/secrets/%v", projectID, secretName)
-			VaultKey(ctx, sm, serviceAccountKey, formattedSecretName, false)
+			err = VaultKey(ctx, sm, serviceAccountKey, formattedSecretName, false)
+			if err != nil {
+				log.Fatal(err)
+			}
 			err = grantSecretAccessor(ctx, sm, secretName, d.ApplicationServiceAccount)
 			if err != nil {
 				log.Fatal(err)
