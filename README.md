@@ -16,8 +16,8 @@ this situation easily with the _yet to be released_ emergency key rotation optio
 
 ## Deployment Configuration
 
-The Service Account used to run the cloud function will require the following permissions: Secret Manager Admin and Service Account Key Admin.
+The Service Account used to run the cloud function will require the following roles: Secret Manager Admin and Service Account Key Admin.
 
 A runtime environment variable of SecureStoreProjectID is expected to be provided and needs to contain a valid projectID in the form `my-project-id-123`
 
-NOTE: The Identity and Access Management (IAM) and Secrets Manager APIs must be enabled in the projects where service account keys and secrets will be used.
+NOTE: The Identity and Access Management (IAM) and Secrets Manager APIs must be enabled in the projects where service account keys and secrets will be created.
