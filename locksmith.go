@@ -52,13 +52,9 @@ type Directive struct {
 // is set to 'true' in the directive, it will disable all other service account keys for that service
 // account. It will return one of []byte or error. The []byte (the KeyFile) contains the key material
 // of the service account. This should be treated as a secret and should only ever be placed in secret manager.
-func CreateServiceAccountKey(ctx context.Context, serviceAccountEmail string, disableAction bool) ([]byte, error) {
+func CreateServiceAccountKey(ctx context.Context, iamService *iam.Service, serviceAccountEmail string, disableAction bool) ([]byte, error) {
 	log.Println("Starting the process to create service account key...")
 
-	iamService, err := iam.NewService(ctx)
-	if err != nil {
-		return nil, err
-	}
 	serviceAccount := fmt.Sprintf("projects/-/serviceAccounts/%v", serviceAccountEmail)
 
 	// This will disable the service account keys if the directive states to do so.
@@ -266,10 +262,15 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	iamService, err := iam.NewService(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
 	switch isValid, err := d.validateDirective(); isValid {
 	case true:
 
-		serviceAccountKey, err := CreateServiceAccountKey(ctx, d.ServiceAccountEmail, d.DisableServiceAccountKeys)
+		serviceAccountKey, err := CreateServiceAccountKey(ctx, iamService, d.ServiceAccountEmail, d.DisableServiceAccountKeys)
 		if err != nil {
 			log.Fatal(err)
 		}
