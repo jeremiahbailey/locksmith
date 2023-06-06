@@ -3,12 +3,16 @@ package locksmith
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	secretmanager "cloud.google.com/go/secretmanager/apiv1"
+	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
 	"google.golang.org/api/iam/v1"
 	"google.golang.org/api/option"
+	"google.golang.org/grpc"
 )
 
 func TestCreateServiceAccountKey(t *testing.T) {
@@ -44,5 +48,62 @@ func TestCreateServiceAccountKey(t *testing.T) {
 
 	if got.Disabled {
 		t.Fatalf("expected %v, got %v", false, got.Disabled)
+	}
+}
+
+func TestCreateSecret(t *testing.T) {
+
+	expectedLabels := make(map[string]string)
+	expectedLabels["islsm"] = "true"
+	expectedLabels["serviceaccountemail"] = "myFakeSA-myfakeproject-iam-gserviceaccount-com"
+
+	expectedSecretName := "projects/myfakeproject/secrets/lsm-myfakeproject-75788"
+
+	ctx := context.Background()
+	fakeSecretManagerService := &fakeSecretManagerService{}
+	l, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gsrv := grpc.NewServer()
+	secretmanagerpb.RegisterSecretManagerServiceServer(gsrv, fakeSecretManagerService)
+	fakeServerAddr := l.Addr().String()
+	go func() {
+		if err := gsrv.Serve(l); err != nil {
+			panic(err)
+		}
+	}()
+
+	// Create a client.
+	client, err := secretmanager.NewClient(ctx,
+		option.WithEndpoint(fakeServerAddr),
+		option.WithoutAuthentication(),
+		option.WithGRPCDialOption(grpc.WithInsecure()),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := createSecret(ctx, client, "myfakeproject", "myFakeSA@myfakeproject.iam.gserviceaccount.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got.Name != expectedSecretName {
+		t.Fatalf("expected %v, got %v", expectedSecretName, got.Name)
+	}
+
+	for k, v := range got.Labels {
+		if k == "islsm" && v != "true" {
+			t.Fatalf("expected %v, got %v", expectedLabels["islsm"], v)
+		}
+
+		if k == "serviceaccountemail" && v != "myFakeSA-myfakeproject-iam-gserviceaccount-com" {
+			t.Fatalf("expected %v, got %v", expectedLabels["serviceaccountemail"], v)
+		}
+
+		if k != "islsm" && k != "serviceaccountemail" {
+			t.Fatalf("expected labels %v, got %v", expectedLabels, got.Labels)
+		}
 	}
 }

@@ -154,7 +154,7 @@ func disableSecretVersions(ctx context.Context, sm *secretmanager.Client, secret
 }
 
 // Creates a secret in the given projectID and labels it.
-func createSecret(ctx context.Context, sm *secretmanager.Client, projectID string, serviceAccountEmail string) (string, error) {
+func createSecret(ctx context.Context, sm *secretmanager.Client, projectID string, serviceAccountEmail string) (*secretmanagerpb.Secret, error) {
 
 	s := fmt.Sprintf("lsm-%v-%v", projectID, rand.Intn(100000))
 
@@ -175,16 +175,16 @@ func createSecret(ctx context.Context, sm *secretmanager.Client, projectID strin
 	resp, err := sm.CreateSecret(ctx, createSecretRequest)
 
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return resp.Name, nil
+	return resp, nil
 }
 
 // Checks if a secret exists or not for the given service account by checking secret labels that may have the email
 // address of the service account. If a secret has a matching label, we don't need to create a new secret for the new
 // service account key.
-func checkForSecret(ctx context.Context, sm *secretmanager.Client, projectID string, serviceAccountEmail string) (string, bool, error) {
+func checkForSecret(ctx context.Context, sm *secretmanager.Client, projectID string, serviceAccountEmail string) (*secretmanagerpb.Secret, bool, error) {
 
 	req := &secretmanagerpb.ListSecretsRequest{
 		Parent: fmt.Sprintf("projects/%v", projectID),
@@ -197,14 +197,14 @@ func checkForSecret(ctx context.Context, sm *secretmanager.Client, projectID str
 			break
 		}
 		if err != nil {
-			return "", false, err
+			return nil, false, err
 		}
 
 		if resp.Name != "" {
-			return resp.Name, true, nil
+			return resp, true, nil
 		}
 	}
-	return "", false, nil
+	return nil, false, nil
 }
 
 // TODO: Implement a process that will allow for rotating all service account keys
@@ -277,31 +277,31 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 			log.Fatal(err)
 		}
 
-		secretName, exists, err := checkForSecret(ctx, sm, projectID, d.ServiceAccountEmail)
+		secret, exists, err := checkForSecret(ctx, sm, projectID, d.ServiceAccountEmail)
 		if err != nil {
 			log.Fatal(err)
 		}
 		switch exists {
 		case true:
-			err = VaultKey(ctx, sm, privateKeyData, secretName, d.DisableSecretVersions)
+			err = VaultKey(ctx, sm, privateKeyData, secret.Name, d.DisableSecretVersions)
 			if err != nil {
 				log.Fatal(err)
 			}
-			err = grantSecretAccessor(ctx, sm, secretName, d.ApplicationServiceAccount)
+			err = grantSecretAccessor(ctx, sm, secret.Name, d.ApplicationServiceAccount)
 			if err != nil {
 				log.Fatal(err)
 			}
 		default:
-			secretName, err := createSecret(ctx, sm, projectID, d.ServiceAccountEmail)
+			secret, err := createSecret(ctx, sm, projectID, d.ServiceAccountEmail)
 			if err != nil {
 				log.Fatal(err)
 			}
 
-			err = VaultKey(ctx, sm, privateKeyData, secretName, false)
+			err = VaultKey(ctx, sm, privateKeyData, secret.Name, false)
 			if err != nil {
 				log.Fatal(err)
 			}
-			err = grantSecretAccessor(ctx, sm, secretName, d.ApplicationServiceAccount)
+			err = grantSecretAccessor(ctx, sm, secret.Name, d.ApplicationServiceAccount)
 			if err != nil {
 				log.Fatal(err)
 			}
