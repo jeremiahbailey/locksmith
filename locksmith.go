@@ -52,7 +52,7 @@ type Directive struct {
 // is set to 'true' in the directive, it will disable all other service account keys for that service
 // account. It will return one of []byte or error. The []byte (the KeyFile) contains the key material
 // of the service account. This should be treated as a secret and should only ever be placed in secret manager.
-func CreateServiceAccountKey(ctx context.Context, iamService *iam.Service, serviceAccountEmail string, disableAction bool) ([]byte, error) {
+func CreateServiceAccountKey(ctx context.Context, iamService *iam.Service, serviceAccountEmail string, disableAction bool) (*iam.ServiceAccountKey, error) {
 	log.Println("Starting the process to create service account key...")
 
 	serviceAccount := fmt.Sprintf("projects/-/serviceAccounts/%v", serviceAccountEmail)
@@ -71,12 +71,7 @@ func CreateServiceAccountKey(ctx context.Context, iamService *iam.Service, servi
 
 	log.Printf("Created service account key: %v", serviceAccount)
 
-	keyFile, err := base64.StdEncoding.DecodeString(key.PrivateKeyData)
-	if err != nil {
-		return nil, err
-	}
-
-	return keyFile, err
+	return key, err
 }
 
 // Disable any existing keys for the service account.
@@ -276,13 +271,19 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		}
 		projectID := os.Getenv("SecureStoreProjectID")
 
+		// Decode private key data to []byte
+		privateKeyData, err := base64.StdEncoding.DecodeString(serviceAccountKey.PrivateKeyData)
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		secretName, exists, err := checkForSecret(ctx, sm, projectID, d.ServiceAccountEmail)
 		if err != nil {
 			log.Fatal(err)
 		}
 		switch exists {
 		case true:
-			err = VaultKey(ctx, sm, serviceAccountKey, secretName, d.DisableSecretVersions)
+			err = VaultKey(ctx, sm, privateKeyData, secretName, d.DisableSecretVersions)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -296,8 +297,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 				log.Fatal(err)
 			}
 
-			formattedSecretName := fmt.Sprintf("projects/%v/secrets/%v", projectID, secretName)
-			err = VaultKey(ctx, sm, serviceAccountKey, formattedSecretName, false)
+			err = VaultKey(ctx, sm, privateKeyData, secretName, false)
 			if err != nil {
 				log.Fatal(err)
 			}
